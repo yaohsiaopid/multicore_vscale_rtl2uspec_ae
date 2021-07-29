@@ -10,8 +10,8 @@ time_points_delta = []
 target_dir="./gensva/intra_hbi/"
 core_mod="core_gen_block[0].vscale"
 eventual = 0 
-time_stats = {'local': 0, 'global': 0}
-cnt_stats = {'local': 0, 'global': 0}
+time_stats = {'local': 0, 'global': 0, 'instn_eventual': 0, 'remote_eventual': 0}
+cnt_stats = {'local': 0, 'global': 0, 'instn_eventual': 0, 'remote_eventual': 0}
 pass_cnt_stats = {'local': 0, 'global': 0}
 if not os.path.isdir(target_dir):
     sys.exit("no directory %s" % target_dir)
@@ -22,6 +22,7 @@ def parse_update(meta, res, res_eventual, idx):
     global time_stats
     global eventual
     global cnt_stats 
+    global target_dir
 
     if not os.path.exists(meta) or not os.path.exists(res):
         print("no " + meta + " or " + res)
@@ -54,8 +55,32 @@ def parse_update(meta, res, res_eventual, idx):
         if line[0] == 'm':
             if res == "proven": # check WEN == 1 is proven
                 line[3] = "updated"
-                ### TODO run eventual_remote_%d_%d.sv" % (cnt_m, idx)
-                  
+                ### TODO run 
+                if not core_mod in line[2]:
+                    remote_prefix = "eventual_remote_%d_%s" % (cnt_m, idx)
+                    res_csv_remote = target_dir + remote_prefix + "_dir/" + remote_prefix +  ".csv"
+
+                    if os.path.exists(res_csv_remote):
+                        print("pass %s" % res_csv_remote)
+                    else:
+                        cmd = "./RUN_JG.sh -t revised_script/jg_intra_hbi.tcl -g 0 -s %s -r %s -d %s" % (target_dir + remote_prefix + ".sv", remote_prefix, target_dir + remote_prefix) 
+                        print("TO run " + cmd)
+                        print("goal: " + res_csv_remote)
+                        os.system(cmd)
+                        # "eventual_remote_%d_%d.sv" % (cnt_m, idx)
+                    tmpdf = pd.read_csv(res_csv_remote)
+                    t_ = sum(tmpdf['Time'].apply(lambda x:  float(re.sub('[^0-9.]', '', x))))
+                    time_tt += t_ #sum(dt['Time'].apply(lambda x:  float(re.sub('[^0-9.]', '', x))))
+                    time_stats['remote_eventual'] += t_
+                    cnt_stats['remote_eventual'] += 1
+                    for _, tmprow in tmpdf.iterrows():
+                        if 'assert' in tmprow['Name'] and (not 'precondition' in tmprow['Name']):
+                            if not tmprow['Result'] == "proven":
+                                line[3] = "fixed" 
+                                print("fail remote " + tmprow + res_csv_remote)
+                            else:
+                                print("success " + res_csv_remote)
+         
             else:
                 line[3] = "fixed"
         else:
@@ -89,6 +114,9 @@ def parse_update(meta, res, res_eventual, idx):
     t_ = sum(dt['Time'].apply(lambda x:  float(re.sub('[^0-9.]', '', x))))
     time_tt += t_ #sum(dt['Time'].apply(lambda x:  float(re.sub('[^0-9.]', '', x))))
     eventual += t_
+    
+    time_stats['instn_eventual'] += t_
+    cnt_stats['instn_eventual'] += 1
     with open(meta + ".res", "a+") as f:
 
         for x, y in dt.iterrows():
@@ -97,7 +125,7 @@ def parse_update(meta, res, res_eventual, idx):
                 time_points_delta.append(float(re.sub('[^0-9.]', '', y['Time'])))
                 break
     print("=================================================")
-    ### TODO add eventual_remote_%d_%d.sv" % (cnt_m, idx)
+    ### add eventual_remote_%d_%d.sv" % (cnt_m, idx)
 
 
 meta_list = glob.glob(target_dir+"ever_update_*.txt")
@@ -137,18 +165,23 @@ for itm in meta_list:
     parse_update(itm, result_csv, result_csv_eventual, idx)
 
     #result + ".csv")
-
-print("total time_tt: %f" % time_tt)
-avg = (time_tt - sum(time_points))*1.0/len(time_points)
-print("avg assumption", avg)
-print(time_points + time_points_delta)
-print("time points std with delta", np.std(time_points + time_points_delta))
-time_points = np.array(time_points) + avg
-print("time points", time_points)
-print("time poitns sum", sum(time_points))
-print("time points len", len(time_points))
-print("time points std", np.std(time_points+avg))
-print("time points mean", np.mean(time_points+avg))
-print("time: ", time_stats)
+print("================================================== ")
+print("Total time on intra-instruction HBI (sec) : %f" % time_tt)
+cnt_ = 0
+for k, v in cnt_stats.items():
+    cnt_ += v
+print("Total number of SVA evaluated: %d" % cnt_)
+print("================================================== ")
+#avg = (time_tt - sum(time_points))*1.0/len(time_points)
+#print("avg assumption", avg)
+#print(time_points + time_points_delta)
+#print("time points std with delta", np.std(time_points + time_points_delta))
+#time_points = np.array(time_points) + avg
+#print("time points", time_points)
+#print("time poitns sum", sum(time_points))
+#print("time points len", len(time_points))
+#print("time points std", np.std(time_points+avg))
+#print("time points mean", np.mean(time_points+avg))
+#print("time: ", time_stats)
 print("cnt: ", cnt_stats)
 print("pass cnt(ever update): ", pass_cnt_stats)
