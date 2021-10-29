@@ -14,7 +14,10 @@ module vscale_sim_top(
                       output                       htif_pcr_resp_valid[0:`NUM_CORES-1],
                       input                        htif_pcr_resp_ready,
                       output [`HTIF_PCR_WIDTH-1:0] htif_pcr_resp_data[0:`NUM_CORES-1],
-                      input [`CORE_IDX_WIDTH-1:0]  arbiter_next_core
+                      input [`CORE_IDX_WIDTH-1:0]  arbiter_next_core,
+                      input i_we, 
+                      input [5-1:0] i_addr,
+                      input [32-1:0] i_data
                       );
 
    wire                                            resetn;
@@ -156,6 +159,13 @@ module vscale_sim_top(
    reg [`HASTI_BUS_WIDTH-1:0] imem_rdata [0:`NUM_CORES-1];
    reg [`HASTI_BUS_WIDTH-1:0] imem_rmask [0:`NUM_CORES-1];
    reg [`HASTI_BUS_WIDTH-1:0] imem [nwords-1:0];
+
+   always @(posedge clk) begin
+       if (i_we) begin
+           imem[i_addr] <= i_data;
+       end 
+   end 
+
    genvar j;
    generate
        for (j = 0; j < `NUM_CORES ; j++) begin
